@@ -1,0 +1,222 @@
+---
+title: "Project"
+author: "Group 1"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Dataset:
+
+
+```{r starting}
+mydata <- read.csv("C:/Users/Lea/Documents/Harrisburg University/Analytical Methods 1/dataproj1.csv", header = TRUE)
+View(mydata)
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(car)
+library(knitr)
+library(ggExtra)
+library(corrplot)
+
+```
+
+# Summary
+ 
+```{r summary}
+dim(mydata)
+summary(mydata)
+
+```
+
+# Missing data
+```{r missing}
+#Missing data
+apply(mydata,2,function(x) sum(is.na(x)))
+
+#Function to Calculate Percent Missing by Row/Column
+percentmiss = function(x) { sum(is.na(x))/length(x)*100 }
+
+#Percent of Missing Values for each Row Summed into a Frequency Table
+missing_all=apply(mydata, 1, percentmiss)
+table(missing_all)
+
+```
+There is no missing data.
+
+# Outliers
+```{r outlier}
+mahal = mahalanobis(mydata[ , -1], 
+                    colMeans(mydata[ , -1], na.rm = TRUE),
+                    cov(mydata[ , -1], use = "pairwise.complete.obs"))
+cutoff = qchisq(1-.001, ncol(mydata[, -1]))
+cutoff
+ncol(mydata[,-1])
+summary(mahal < cutoff)
+
+```
+
+# Distribution
+
+```{r histogram}
+head(mydata)
+ggplot(mydata, aes(x=Personal_Consumption_Expenditure,  Y=Adj_Close)) + 
+        geom_histogram(aes(y=..density..), bindwidth =0.5, colour = "blue", fill = "white") + 
+        geom_density( alpha =0.2, fill = "#FF6666")+
+        geom_vline( aes(xintercept=mean(mpg), color="red"), linetype ="dashed", size = 1)
+```
+
+
+# Additivity: correlation
+
+```{r correlation}
+#Correlation Matrix
+correlation_matrix <- cor(mydata[ , -1])
+round(correlation_matrix,2)
+
+#Plot of Correlation Matrix
+corrplot(correlation_matrix)
+
+#Symnum BiVariate Correlation Table
+symnum(correlation_matrix)
+
+# We do not meet the assumption for additivity. Some variables are colinear or multi colinear. Most variables except Personal_Savings_Rate have a strong correlation > 0.9.
+
+#Correlation Output for Pearson - all variables included
+cor(mydata[ , -1], use="pairwise.complete.obs", method = "pearson")
+
+#Correlation Output for Spearman
+cor(mydata[ , -1], use="pairwise.complete.obs", method = "spearman")
+
+#Correlation Output for Kendall
+cor(mydata[ , -1], use="pairwise.complete.obs", method = "kendall")
+
+```
+    
+
+# Regression model
+    
+```{r regression}
+
+library(MASS)
+Multiple_lin1 <- lm(Adj_Close~Personal_Consumption_Expenditure +Medicare + Personal_Interst_Income + Personal_Dividend_Income + Real_Disposable_Personal_Income + Personal_Savings_Rate + Personal_Interest_PMT + Personal_Current_Taxes + Social_Security, data = mydata)
+summary(Multiple_lin1)
+confint(Multiple_lin1)
+
+```
+    
+```{r regression 2}
+
+Multiple_lin2 <- lm(Adj_Close~Medicare + Personal_Interst_Income + Personal_Dividend_Income + Real_Disposable_Personal_Income + Personal_Savings_Rate + Personal_Interest_PMT + Personal_Current_Taxes + Social_Security, data = mydata)
+summary(Multiple_lin2)
+confint(Multiple_lin2)
+
+
+```
+
+  
+    
+# Regression plots
+```{r regression plot}
+library(ggplot2)
+
+w <- ggplot(mydata, aes(y=Adj_Close, x=Personal_Consumption_Expenditure)) + geom_point(colour="blue")
+w<- w + stat_smooth(method="lm", formula = y~poly(x,2))+ ggtitle("Regression Plot Adj_Close vs Personal_Consumption_Expenditure")
+w
+wa <- ggplot(mydata, aes(y=Adj_Close, x=Medicare)) + geom_point(colour="blue")
+wa<- wa + stat_smooth()+ ggtitle("Regression Plot  Adj_Close vs Medicare")
+wa
+g <- ggplot(mydata, aes(y=Adj_Close, x=Personal_Interst_Income)) + geom_point(colour="blue")
+g<- g + stat_smooth(method="lm", formula = y~poly(x,2))+ ggtitle("Regression Plot Adj_Close vs Personal_Interst_Income")
+g
+gl <- ggplot(mydata, aes(y=Adj_Close, x=Personal_Dividend_Income)) + geom_point(colour="blue")
+gl<- gl + stat_smooth()+ ggtitle("Regression Plot Adj_Close vs Personal_Dividend_Income")
+gl
+am <- ggplot(mydata, aes(y=Adj_Close, x=Real_Disposable_Personal_Income)) + geom_point(colour="blue")
+am<- am + stat_smooth(method="lm", formula = y~x)+ ggtitle("Regression Plot Adj_Close vs Real_Disposable_Personal_Income")
+am
+ama <- ggplot(mydata, aes(y=Adj_Close, x=Personal_Savings_Rate)) + geom_point(colour="blue")
+ama<- ama + stat_smooth()+ ggtitle("Regression Plot Adj_Close vs Personal_Savings_Rate")
+ama
+nm <- ggplot(mydata, aes(y=Adj_Close, x=Personal_Interest_PMT)) + geom_point(colour="blue")
+nm<- g + stat_smooth(method="lm", formula = y~poly(x,2))+ ggtitle("Regression Plot Adj_Close vs Personal_Interest_PMT")
+nm
+glb <- ggplot(mydata, aes(y=Adj_Close, x=Personal_Current_Taxes)) + geom_point(colour="blue")
+glb<- gl + stat_smooth()+ ggtitle("Regression Plot Adj_Close vs Personal_Current_Taxes")
+glb
+m <- ggplot(mydata, aes(y=Adj_Close, x=Social_Security)) + geom_point(colour="blue")
+m<- am + stat_smooth(method="lm", formula = y~x)+ ggtitle("Social_Security")
+m
+
+```
+
+
+
+
+# Verify assumptions for the model Multiple_lin2:
+
+## Linearity: 
+
+```{r linearity}
+final = mydata
+random = rchisq(nrow(final), 7)
+fake = lm(random ~ ., data = final)
+standardized = rstudent(Multiple_lin2)
+fitted = scale(Multiple_lin2$fitted.values)
+{qqnorm(standardized)
+abline(0,1)}
+
+#standardized = rstudent(Multiple_lin1)
+#fitted = scale(Multiple_lin1$fitted.values)
+#{qqnorm(standardized)
+#abline(0,1)}
+
+```
+
+The assumption for linearity is met since the Normal Q-Q plot is nearly linear.
+
+## Normality: 
+
+```{r normality}
+hist(standardized, breaks = 15)
+
+```
+
+The assumption for normality is met is the histogram presents a normal distribution.
+
+## Homogeneity and Homoscedasticity: 
+
+```{r homogs}
+{plot(fitted, standardized)
+abline(0,0)
+abline(v = 0)}
+
+```
+    
+The assumption for homogeneity is met because the plot shows that the spread is nearly consistent across the ranges of values. The assumption for homoscedasticity is met since the variance around the regression line is similar for all values of the predictor variable.
+
+# Assumptions for model Multiple_lin2
+
+```{r assumptions}
+# Diagnostics plots to check for linearity, normality, homoscedasticity, homogeneity, influential values, outliers and high leverage points
+par(mfrow = c(2, 2))
+plot(Multiple_lin2)
+plot(Multiple_lin2, 1) # Residuals vs Fitted
+plot(Multiple_lin2, 2) # Normal Q-Q
+plot(Multiple_lin2, 3) # Scale-Location
+plot(Multiple_lin2, 4) # Cook's Distance
+plot(Multiple_lin2, 5) # Residuals vs Leverage
+
+# Normality
+standardized = rstudent(Multiple_lin2)
+hist(standardized, breaks=15)
+
+#plot(Multiple_lin1)
+#standardized = rstudent(Multiple_lin1)
+#hist(standardized, breaks=15)
+```
